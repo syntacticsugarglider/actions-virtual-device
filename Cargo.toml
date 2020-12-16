@@ -1,0 +1,17 @@
+[package]
+name = "lights"
+version = "0.1.0"
+authors = ["Izzy Swart <zenerboson@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+warp = "0.2.5"
+smol = "1.2.5"
+async-compat = "0.1.4"
+serde = { version = "1.0.118", features = ["derive"] }
+uuid = { version = "0.8.1", features = ["v4"] }
+http = "0.2.2"
+bytes = "0.5.6"
+serde_json = "1.0.60"
+lights-broadlink = { git = "https://github.com/syntacticsugarglider/lights-broadlink", branch = "main" }
+futures = "0.3.8"
