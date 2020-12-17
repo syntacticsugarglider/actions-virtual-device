@@ -15,6 +15,9 @@ use request_sync::request_sync;
 use thiserror::Error;
 
 mod integrations;
+pub use integrations::broadlink::BroadlinkLight;
+pub use integrations::sengled::SengledLight;
+pub use integrations::tuya::{tuya_scan, TuyaLight};
 
 pub enum PowerState {
     On,
@@ -86,6 +89,25 @@ impl App {
             light: Box::new(light),
         });
         self.by_id.insert(id, light.clone());
+        smol::spawn(async move {
+            if let Err(e) = request_sync().await {
+                eprintln!("sync request failed: {:?}", e);
+            }
+        })
+        .detach();
+    }
+    pub fn push_lights<I: IntoIterator<Item = T>, T: Light + Sync + Send + 'static>(
+        &mut self,
+        lights: I,
+    ) {
+        for light in lights {
+            let id = Uuid::new_v4();
+            let light = Arc::new(LightWrapper {
+                id,
+                light: Box::new(light),
+            });
+            self.by_id.insert(id, light.clone());
+        }
         smol::spawn(async move {
             if let Err(e) = request_sync().await {
                 eprintln!("sync request failed: {:?}", e);

@@ -41,7 +41,6 @@ pub fn auth() -> BoxedFilter<(impl Reply,)> {
         auth.and(warp::path("auth"))
             .and(warp::query())
             .map(move |query: OauthQuery| {
-                println!("auth");
                 warp::redirect::redirect(
                     Uri::try_from(format!(
                         "{}?code={}&state={}",
@@ -53,8 +52,7 @@ pub fn auth() -> BoxedFilter<(impl Reply,)> {
     let auth_token =
         auth.and(warp::path("token"))
             .and(warp::body::form())
-            .map(move |query: TokenQuery| {
-                println!("token req: {:?}", query);
+            .map(move |_: TokenQuery| {
                 warp::reply::json(&TokenResponse {
                     token_type: "Bearer".to_owned(),
                     access_token: access_token.clone(),

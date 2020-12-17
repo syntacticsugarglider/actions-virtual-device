@@ -1,3 +1,5 @@
 /target
 key.json
 secrets
+tuya/access_token
+tuya/*.toml

@@ -84,7 +84,7 @@ pub async fn fulfill(request: FulfillmentRequest, app: &mut App) -> FulfillmentR
                         for device in &command.devices {
                             for command in &command.execution {
                                 if let CommandParams::OnOff { on } = command.params {
-                                    let result = app.set_state(&device.id, on.into()).await;
+                                    let _ = app.set_state(&device.id, on.into()).await;
                                 }
                             }
                         }
