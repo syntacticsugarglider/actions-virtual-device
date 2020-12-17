@@ -1,4 +1,12 @@
-use std::{borrow::Borrow, collections::HashMap, error::Error as StdError, sync::Arc};
+use std::{
+    borrow::Borrow,
+    collections::HashMap,
+    error::Error as StdError,
+    sync::{
+        atomic::{AtomicBool, AtomicU8, Ordering},
+        Arc,
+    },
+};
 
 mod auth;
 pub use auth::auth;
@@ -35,9 +43,15 @@ impl From<bool> for PowerState {
 
 pub trait Light {
     fn name(&self) -> String;
+
     fn set_power_state<'a>(
         &'a self,
         state: PowerState,
+    ) -> BoxFuture<'a, Result<(), Box<dyn StdError + Send>>>;
+
+    fn set_brightness<'a>(
+        &'a self,
+        brightness: u8,
     ) -> BoxFuture<'a, Result<(), Box<dyn StdError + Send>>>;
 }
 
@@ -50,17 +64,25 @@ pub struct App {
 struct LightWrapper {
     light: Box<dyn Light + Sync + Send>,
     id: Uuid,
+    brightness: AtomicU8,
+    is_on: AtomicBool,
 }
 
 impl LightWrapper {
     fn name(&self) -> String {
         self.light.name()
     }
+    fn brightness(&self) -> u8 {
+        self.brightness.load(Ordering::SeqCst)
+    }
     fn id(&self) -> String {
         self.id.to_string()
     }
     fn light(&self) -> &(dyn Light + Sync + Send) {
         self.light.as_ref()
+    }
+    fn is_on(&self) -> bool {
+        self.is_on.load(Ordering::SeqCst)
     }
 }
 
@@ -87,6 +109,8 @@ impl App {
         let light = Arc::new(LightWrapper {
             id,
             light: Box::new(light),
+            brightness: AtomicU8::new(0),
+            is_on: AtomicBool::new(false),
         });
         self.by_id.insert(id, light.clone());
         smol::spawn(async move {
@@ -104,6 +128,8 @@ impl App {
             let id = Uuid::new_v4();
             let light = Arc::new(LightWrapper {
                 id,
+                brightness: AtomicU8::new(0),
+                is_on: AtomicBool::new(false),
                 light: Box::new(light),
             });
             self.by_id.insert(id, light.clone());
@@ -125,12 +151,21 @@ impl App {
         self.by_id.values().map(|light| light.as_ref())
     }
     async fn set_state(&mut self, id: &str, state: PowerState) -> Result<(), Error> {
-        self.by_id
-            .get(&Uuid::parse_str(id)?)
-            .ok_or(Error::Absent)?
-            .light()
-            .set_power_state(state)
-            .await?;
+        let wrapper = self.by_id.get(&Uuid::parse_str(id)?).ok_or(Error::Absent)?;
+        wrapper.is_on.store(
+            match state {
+                PowerState::On => true,
+                PowerState::Off => false,
+            },
+            Ordering::SeqCst,
+        );
+        wrapper.light().set_power_state(state).await?;
+        Ok(())
+    }
+    async fn set_brightness(&mut self, id: &str, brightness: u8) -> Result<(), Error> {
+        let wrapper = self.by_id.get(&Uuid::parse_str(id)?).ok_or(Error::Absent)?;
+        wrapper.brightness.store(brightness, Ordering::SeqCst);
+        wrapper.light().set_brightness(brightness).await?;
         Ok(())
     }
     fn add_lights(&mut self, group: &str, lights: impl IntoIterator<Item = String>) {

@@ -46,6 +46,18 @@ impl crate::Light for TuyaLight {
         };
         Box::pin(fut.map_err(|e| Box::new(e) as Box<dyn Error + Send>))
     }
+
+    fn set_brightness<'a>(
+        &'a self,
+        brightness: u8,
+    ) -> BoxFuture<'a, Result<(), Box<dyn Error + Send>>> {
+        Box::pin(async move {
+            self.api
+                .set_brightness(&self.light, brightness as u16)
+                .await
+                .map_err(|e| Box::new(e) as Box<dyn Error + Send>)
+        })
+    }
 }
 
 impl TuyaLight {

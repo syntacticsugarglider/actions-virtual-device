@@ -20,7 +20,6 @@ fn main() {
                 while let Some(Ok(light)) = stream.next().await {
                     let mut light = light.connect().await.unwrap();
                     light.set_transition_duration(0).await.unwrap();
-                    light.turn_on().await.unwrap();
                     let mut app = app.lock().await;
                     app.push_light(BroadlinkLight::new(light));
                 }
