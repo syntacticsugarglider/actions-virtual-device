@@ -99,7 +99,8 @@ struct QueryDevice {
 #[serde(untagged)]
 enum QueryColor {
     White {
-        temperature_k: u32,
+        temperature: u32,
+        name: String,
     },
     Rgb {
         #[serde(rename = "spectrumRGB")]
@@ -124,6 +125,7 @@ struct Device {
 #[serde(rename_all = "camelCase")]
 struct DeviceAttributes {
     color_model: String,
+    color_temperature_range: ColorTemperatureRange,
 }
 
 #[derive(Serialize, Clone)]
@@ -158,6 +160,10 @@ pub async fn fulfill(request: FulfillmentRequest, app: &mut App) -> FulfillmentR
                         will_report_state: false,
                         attributes: DeviceAttributes {
                             color_model: "rgb".to_owned(),
+                            color_temperature_range: ColorTemperatureRange {
+                                temperature_min_k: 2000,
+                                temperature_max_k: 9000,
+                            },
                         },
                     })
                     .collect(),
@@ -175,6 +181,8 @@ pub async fn fulfill(request: FulfillmentRequest, app: &mut App) -> FulfillmentR
                         });
                         for device in &command.devices {
                             for command in &command.execution {
+                                println!("{}", command.command);
+                                println!("{:?}", command.params);
                                 match &command.params {
                                     CommandParams::OnOff { on } => {
                                         let _ = app.set_state(&device.id, (*on).into()).await;
@@ -187,8 +195,8 @@ pub async fn fulfill(request: FulfillmentRequest, app: &mut App) -> FulfillmentR
                                             )
                                             .await;
                                     }
-                                    CommandParams::Color { color } => {
-                                        if let QueryColor::Rgb { spectrum_rgb, .. } = color {
+                                    CommandParams::Color { color } => match color {
+                                        QueryColor::Rgb { spectrum_rgb, .. } => {
                                             let color = format!("{:06X}", spectrum_rgb)
                                                 .as_bytes()
                                                 .chunks(2)
@@ -214,7 +222,10 @@ pub async fn fulfill(request: FulfillmentRequest, app: &mut App) -> FulfillmentR
                                                 )
                                                 .await;
                                         }
-                                    }
+                                        QueryColor::White { .. } => {
+                                            let _ = app.set_color(&device.id, Color::White).await;
+                                        }
+                                    },
                                 }
                             }
                         }
