@@ -1,4 +1,4 @@
-use crate::PowerState;
+use crate::{Color, PowerState};
 use futures::{
     future::{BoxFuture, Either},
     TryFutureExt,
@@ -43,6 +43,21 @@ impl crate::Light for SengledLight {
         Box::pin(async move {
             self.api
                 .set_brightness(&self.light, brightness)
+                .await
+                .map_err(|e| Box::new(e) as Box<dyn Error + Send>)
+        })
+    }
+
+    fn set_color<'a>(&'a self, color: Color) -> BoxFuture<'a, Result<(), Box<dyn Error + Send>>> {
+        Box::pin(async move {
+            self.api
+                .set_color(
+                    &self.light,
+                    match color {
+                        Color::Rgb { r, g, b } => (r, g, b),
+                        Color::White => (255, 255, 255),
+                    },
+                )
                 .await
                 .map_err(|e| Box::new(e) as Box<dyn Error + Send>)
         })

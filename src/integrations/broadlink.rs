@@ -11,7 +11,7 @@ use std::{
 
 static COUNT: AtomicUsize = AtomicUsize::new(1);
 
-use lights_broadlink::Connection;
+use lights_broadlink::{Color, Connection};
 
 pub struct BroadlinkLight {
     name: String,
@@ -45,6 +45,27 @@ impl crate::Light for BroadlinkLight {
                 .lock()
                 .await
                 .set_brightness(brightness)
+                .await
+                .map_err(|e| Box::new(e) as Box<dyn Error + Send>)
+        })
+    }
+
+    fn set_color<'a>(
+        &'a self,
+        color: crate::Color,
+    ) -> BoxFuture<'a, Result<(), Box<dyn Error + Send>>> {
+        Box::pin(async move {
+            self.light
+                .lock()
+                .await
+                .set_color(match color {
+                    crate::Color::Rgb { r, g, b } => Color::Rgb {
+                        red: r,
+                        green: g,
+                        blue: b,
+                    },
+                    crate::Color::White => Color::White,
+                })
                 .await
                 .map_err(|e| Box::new(e) as Box<dyn Error + Send>)
         })

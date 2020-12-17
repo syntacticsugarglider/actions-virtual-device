@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::App;
+use crate::{App, Color};
 
 #[derive(Deserialize, Debug)]
 struct Input {
@@ -39,6 +39,7 @@ struct CommandCommand {
 enum CommandParams {
     OnOff { on: bool },
     Brightness { brightness: u8 },
+    Color { color: QueryColor },
 }
 
 #[derive(Deserialize, Debug)]
@@ -90,6 +91,21 @@ struct QueryDevice {
     online: bool,
     brightness: u8,
     on: bool,
+    color: QueryColor,
+}
+
+#[derive(Serialize, Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(untagged)]
+enum QueryColor {
+    White {
+        temperature_k: u32,
+    },
+    Rgb {
+        #[serde(rename = "spectrumRGB")]
+        spectrum_rgb: u32,
+        name: String,
+    },
 }
 
 #[derive(Serialize, Clone)]
@@ -101,6 +117,20 @@ struct Device {
     traits: Vec<String>,
     name: Name,
     will_report_state: bool,
+    attributes: DeviceAttributes,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct DeviceAttributes {
+    color_model: String,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ColorTemperatureRange {
+    temperature_min_k: u32,
+    temperature_max_k: u32,
 }
 
 #[derive(Serialize, Clone)]
@@ -126,6 +156,9 @@ pub async fn fulfill(request: FulfillmentRequest, app: &mut App) -> FulfillmentR
                         ],
                         name: Name { name: light.name() },
                         will_report_state: false,
+                        attributes: DeviceAttributes {
+                            color_model: "rgb".to_owned(),
+                        },
                     })
                     .collect(),
             });
@@ -142,18 +175,45 @@ pub async fn fulfill(request: FulfillmentRequest, app: &mut App) -> FulfillmentR
                         });
                         for device in &command.devices {
                             for command in &command.execution {
-                                println!("{}", command.command);
-                                match command.params {
+                                match &command.params {
                                     CommandParams::OnOff { on } => {
-                                        let _ = app.set_state(&device.id, on.into()).await;
+                                        let _ = app.set_state(&device.id, (*on).into()).await;
                                     }
                                     CommandParams::Brightness { brightness } => {
                                         let _ = app
                                             .set_brightness(
                                                 &device.id,
-                                                ((brightness as f32 / 100.) * 255.) as u8,
+                                                ((*brightness as f32 / 100.) * 255.) as u8,
                                             )
                                             .await;
+                                    }
+                                    CommandParams::Color { color } => {
+                                        if let QueryColor::Rgb { spectrum_rgb, .. } = color {
+                                            let color = format!("{:06X}", spectrum_rgb)
+                                                .as_bytes()
+                                                .chunks(2)
+                                                .map(|byte| {
+                                                    u8::from_str_radix(
+                                                        &format!(
+                                                            "{}{}",
+                                                            byte[0] as char, byte[1] as char
+                                                        ),
+                                                        16,
+                                                    )
+                                                    .unwrap()
+                                                })
+                                                .collect::<Vec<_>>();
+                                            let _ = app
+                                                .set_color(
+                                                    &device.id,
+                                                    Color::Rgb {
+                                                        r: color[0],
+                                                        g: color[1],
+                                                        b: color[2],
+                                                    },
+                                                )
+                                                .await;
+                                        }
                                     }
                                 }
                             }
@@ -183,6 +243,10 @@ pub async fn fulfill(request: FulfillmentRequest, app: &mut App) -> FulfillmentR
                                                 as u8,
                                             on: device.is_on(),
                                             status: "SUCCESS".to_owned(),
+                                            color: QueryColor::Rgb {
+                                                name: "".to_owned(),
+                                                spectrum_rgb: device.color(),
+                                            },
                                         },
                                     ))
                                 } else {

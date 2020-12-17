@@ -32,11 +32,66 @@ pub enum PowerState {
     Off,
 }
 
+#[derive(Clone, Copy)]
+pub enum Color {
+    Rgb { r: u8, g: u8, b: u8 },
+    White,
+}
+
+impl Color {
+    pub(crate) fn to_spectrum(&self) -> u32 {
+        let (r, g, b) = match self {
+            Color::Rgb { r, g, b } => (*r, *g, *b),
+            _ => (255, 255, 255),
+        };
+        u32::from_str_radix(&format!("{:02X}{:02X}{:02X}", r, g, b), 16).unwrap()
+    }
+}
+
 impl From<bool> for PowerState {
     fn from(data: bool) -> Self {
         match data {
             true => PowerState::On,
             false => PowerState::Off,
+        }
+    }
+}
+
+struct AtomicColor {
+    red: AtomicU8,
+    blue: AtomicU8,
+    green: AtomicU8,
+    white: AtomicBool,
+}
+
+impl AtomicColor {
+    fn new() -> Self {
+        AtomicColor {
+            white: AtomicBool::new(true),
+            red: AtomicU8::new(255),
+            green: AtomicU8::new(255),
+            blue: AtomicU8::new(255),
+        }
+    }
+    fn store(&self, color: Color, ordering: Ordering) {
+        match color {
+            Color::White => self.white.store(true, ordering),
+            Color::Rgb { r, g, b } => {
+                self.red.store(r, ordering);
+                self.green.store(g, ordering);
+                self.blue.store(b, ordering);
+            }
+        }
+    }
+    fn load(&self, ordering: Ordering) -> Color {
+        if self.white.load(ordering) {
+            Color::White
+        } else {
+            Color::Rgb {
+                r: self.red.load(ordering),
+                g: self.green.load(ordering),
+                b: self.blue.load(ordering),
+            }
         }
     }
 }
@@ -53,6 +108,9 @@ pub trait Light {
         &'a self,
         brightness: u8,
     ) -> BoxFuture<'a, Result<(), Box<dyn StdError + Send>>>;
+
+    fn set_color<'a>(&'a self, color: Color)
+        -> BoxFuture<'a, Result<(), Box<dyn StdError + Send>>>;
 }
 
 pub struct App {
@@ -66,6 +124,7 @@ struct LightWrapper {
     id: Uuid,
     brightness: AtomicU8,
     is_on: AtomicBool,
+    color: AtomicColor,
 }
 
 impl LightWrapper {
@@ -83,6 +142,9 @@ impl LightWrapper {
     }
     fn is_on(&self) -> bool {
         self.is_on.load(Ordering::SeqCst)
+    }
+    fn color(&self) -> u32 {
+        self.color.load(Ordering::SeqCst).to_spectrum()
     }
 }
 
@@ -110,6 +172,7 @@ impl App {
             id,
             light: Box::new(light),
             brightness: AtomicU8::new(0),
+            color: AtomicColor::new(),
             is_on: AtomicBool::new(false),
         });
         self.by_id.insert(id, light.clone());
@@ -130,6 +193,7 @@ impl App {
                 id,
                 brightness: AtomicU8::new(0),
                 is_on: AtomicBool::new(false),
+                color: AtomicColor::new(),
                 light: Box::new(light),
             });
             self.by_id.insert(id, light.clone());
@@ -166,6 +230,12 @@ impl App {
         let wrapper = self.by_id.get(&Uuid::parse_str(id)?).ok_or(Error::Absent)?;
         wrapper.brightness.store(brightness, Ordering::SeqCst);
         wrapper.light().set_brightness(brightness).await?;
+        Ok(())
+    }
+    async fn set_color(&mut self, id: &str, color: Color) -> Result<(), Error> {
+        let wrapper = self.by_id.get(&Uuid::parse_str(id)?).ok_or(Error::Absent)?;
+        wrapper.color.store(color, Ordering::SeqCst);
+        wrapper.light().set_color(color).await?;
         Ok(())
     }
     fn add_lights(&mut self, group: &str, lights: impl IntoIterator<Item = String>) {
