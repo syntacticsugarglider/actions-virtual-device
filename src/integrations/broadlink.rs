@@ -64,10 +64,19 @@ impl crate::Light for BroadlinkLight {
                         green: g,
                         blue: b,
                     },
-                    crate::Color::White => Color::White,
+                    crate::Color::White { temperature } => Color::White { temperature },
                 })
                 .await
                 .map_err(|e| Box::new(e) as Box<dyn Error + Send>)
+        })
+    }
+
+    fn unique_id<'a>(&'a self) -> BoxFuture<'a, Result<String, Box<dyn Error + Send>>> {
+        Box::pin(async move {
+            Ok(format!(
+                "Broadlink Light {}",
+                self.light.lock().await.addr()
+            ))
         })
     }
 }

@@ -74,6 +74,10 @@ impl crate::Light for TuyaLight {
                 .map_err(|e| Box::new(e) as Box<dyn Error + Send>)
         })
     }
+
+    fn unique_id<'a>(&'a self) -> BoxFuture<'a, Result<String, Box<dyn Error + Send>>> {
+        Box::pin(async move { Ok(format!("Tuya Light {}", self.light.id())) })
+    }
 }
 
 impl TuyaLight {

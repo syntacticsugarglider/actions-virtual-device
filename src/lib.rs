@@ -3,7 +3,7 @@ use std::{
     collections::HashMap,
     error::Error as StdError,
     sync::{
-        atomic::{AtomicBool, AtomicU8, Ordering},
+        atomic::{AtomicBool, AtomicU32, AtomicU8, Ordering},
         Arc,
     },
 };
@@ -16,7 +16,6 @@ pub use fulfill::fulfill;
 pub use hook::hook;
 mod util;
 use util::format_list;
-use uuid::Uuid;
 mod request_sync;
 use futures::future::BoxFuture;
 use request_sync::request_sync;
@@ -24,6 +23,7 @@ use thiserror::Error;
 
 mod integrations;
 pub use integrations::broadlink::BroadlinkLight;
+pub use integrations::esp::EspLight;
 pub use integrations::sengled::SengledLight;
 pub use integrations::tuya::{tuya_scan, TuyaLight};
 
@@ -35,7 +35,7 @@ pub enum PowerState {
 #[derive(Clone, Copy)]
 pub enum Color {
     Rgb { r: u8, g: u8, b: u8 },
-    White,
+    White { temperature: u32 },
 }
 
 impl Color {
@@ -62,6 +62,7 @@ struct AtomicColor {
     blue: AtomicU8,
     green: AtomicU8,
     white: AtomicBool,
+    temperature: AtomicU32,
 }
 
 impl AtomicColor {
@@ -71,12 +72,17 @@ impl AtomicColor {
             red: AtomicU8::new(255),
             green: AtomicU8::new(255),
             blue: AtomicU8::new(255),
+            temperature: AtomicU32::new(65000),
         }
     }
     fn store(&self, color: Color, ordering: Ordering) {
         match color {
-            Color::White => self.white.store(true, ordering),
+            Color::White { temperature } => {
+                self.temperature.store(temperature, ordering);
+                self.white.store(true, ordering)
+            }
             Color::Rgb { r, g, b } => {
+                self.white.store(false, ordering);
                 self.red.store(r, ordering);
                 self.green.store(g, ordering);
                 self.blue.store(b, ordering);
@@ -85,7 +91,9 @@ impl AtomicColor {
     }
     fn load(&self, ordering: Ordering) -> Color {
         if self.white.load(ordering) {
-            Color::White
+            Color::White {
+                temperature: self.temperature.load(ordering),
+            }
         } else {
             Color::Rgb {
                 r: self.red.load(ordering),
@@ -98,6 +106,8 @@ impl AtomicColor {
 
 pub trait Light {
     fn name(&self) -> String;
+
+    fn unique_id<'a>(&'a self) -> BoxFuture<'a, Result<String, Box<dyn StdError + Send>>>;
 
     fn set_power_state<'a>(
         &'a self,
@@ -113,15 +123,18 @@ pub trait Light {
         -> BoxFuture<'a, Result<(), Box<dyn StdError + Send>>>;
 }
 
+#[derive(Hash, PartialEq, Eq, Clone)]
+struct Id(String);
+
 pub struct App {
-    by_id: HashMap<Uuid, Arc<LightWrapper>>,
+    by_id: HashMap<Id, Arc<LightWrapper>>,
     by_name: HashMap<String, Arc<LightWrapper>>,
     groups: HashMap<String, Vec<Arc<LightWrapper>>>,
 }
 
 struct LightWrapper {
     light: Box<dyn Light + Sync + Send>,
-    id: Uuid,
+    id: Id,
     brightness: AtomicU8,
     is_on: AtomicBool,
     color: AtomicColor,
@@ -135,7 +148,7 @@ impl LightWrapper {
         self.brightness.load(Ordering::SeqCst)
     }
     fn id(&self) -> String {
-        self.id.to_string()
+        self.id.0.clone()
     }
     fn light(&self) -> &(dyn Light + Sync + Send) {
         self.light.as_ref()
@@ -152,8 +165,6 @@ impl LightWrapper {
 pub enum Error {
     #[error("light error: {0}")]
     Light(#[from] Box<dyn StdError + Send>),
-    #[error("invalid UUID: {0}")]
-    Uuid(#[from] uuid::Error),
     #[error("nonexistent light accessed")]
     Absent,
 }
@@ -166,37 +177,41 @@ impl App {
             by_id: HashMap::new(),
         }
     }
-    pub fn push_light<T: Light + Sync + Send + 'static>(&mut self, light: T) {
-        let id = Uuid::new_v4();
-        let light = Arc::new(LightWrapper {
-            id,
-            light: Box::new(light),
-            brightness: AtomicU8::new(0),
-            color: AtomicColor::new(),
-            is_on: AtomicBool::new(false),
-        });
-        self.by_id.insert(id, light.clone());
-        smol::spawn(async move {
-            if let Err(e) = request_sync().await {
-                eprintln!("sync request failed: {:?}", e);
-            }
-        })
-        .detach();
+    pub async fn push_light<T: Light + Sync + Send + 'static>(&mut self, light: T) {
+        if let Ok(id) = light.unique_id().await {
+            let id = Id(id);
+            let light = Arc::new(LightWrapper {
+                id: id.clone(),
+                light: Box::new(light),
+                brightness: AtomicU8::new(0),
+                color: AtomicColor::new(),
+                is_on: AtomicBool::new(false),
+            });
+            self.by_id.insert(id, light.clone());
+            smol::spawn(async move {
+                if let Err(e) = request_sync().await {
+                    eprintln!("sync request failed: {:?}", e);
+                }
+            })
+            .detach();
+        }
     }
-    pub fn push_lights<I: IntoIterator<Item = T>, T: Light + Sync + Send + 'static>(
+    pub async fn push_lights<I: IntoIterator<Item = T>, T: Light + Sync + Send + 'static>(
         &mut self,
         lights: I,
     ) {
         for light in lights {
-            let id = Uuid::new_v4();
-            let light = Arc::new(LightWrapper {
-                id,
-                brightness: AtomicU8::new(0),
-                is_on: AtomicBool::new(false),
-                color: AtomicColor::new(),
-                light: Box::new(light),
-            });
-            self.by_id.insert(id, light.clone());
+            if let Ok(id) = light.unique_id().await {
+                let id = Id(id);
+                let light = Arc::new(LightWrapper {
+                    id: id.clone(),
+                    brightness: AtomicU8::new(0),
+                    is_on: AtomicBool::new(false),
+                    color: AtomicColor::new(),
+                    light: Box::new(light),
+                });
+                self.by_id.insert(id, light.clone());
+            }
         }
         smol::spawn(async move {
             if let Err(e) = request_sync().await {
@@ -215,7 +230,7 @@ impl App {
         self.by_id.values().map(|light| light.as_ref())
     }
     async fn set_state(&mut self, id: &str, state: PowerState) -> Result<(), Error> {
-        let wrapper = self.by_id.get(&Uuid::parse_str(id)?).ok_or(Error::Absent)?;
+        let wrapper = self.by_id.get(&Id(id.into())).ok_or(Error::Absent)?;
         wrapper.is_on.store(
             match state {
                 PowerState::On => true,
@@ -227,13 +242,13 @@ impl App {
         Ok(())
     }
     async fn set_brightness(&mut self, id: &str, brightness: u8) -> Result<(), Error> {
-        let wrapper = self.by_id.get(&Uuid::parse_str(id)?).ok_or(Error::Absent)?;
+        let wrapper = self.by_id.get(&Id(id.into())).ok_or(Error::Absent)?;
         wrapper.brightness.store(brightness, Ordering::SeqCst);
         wrapper.light().set_brightness(brightness).await?;
         Ok(())
     }
     async fn set_color(&mut self, id: &str, color: Color) -> Result<(), Error> {
-        let wrapper = self.by_id.get(&Uuid::parse_str(id)?).ok_or(Error::Absent)?;
+        let wrapper = self.by_id.get(&Id(id.into())).ok_or(Error::Absent)?;
         wrapper.color.store(color, Ordering::SeqCst);
         wrapper.light().set_color(color).await?;
         Ok(())

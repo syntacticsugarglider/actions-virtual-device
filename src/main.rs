@@ -2,8 +2,9 @@ use std::{convert::Infallible, sync::Arc};
 
 use async_compat::Compat;
 use futures::{pin_mut, StreamExt};
-use lights::{tuya_scan, BroadlinkLight, SengledLight};
+use lights::{tuya_scan, BroadlinkLight, EspLight, SengledLight};
 use lights_broadlink::discover;
+use lights_esp_strip::listen;
 use lights_sengled::SengledApi;
 use smol::{block_on, lock::Mutex};
 use warp::Filter;
@@ -21,7 +22,21 @@ fn main() {
                     let mut light = light.connect().await.unwrap();
                     light.set_transition_duration(0).await.unwrap();
                     let mut app = app.lock().await;
-                    app.push_light(BroadlinkLight::new(light));
+                    app.push_light(BroadlinkLight::new(light)).await;
+                }
+            }
+        })
+        .detach();
+
+        smol::spawn({
+            let app = app.clone();
+            async move {
+                let stream = listen(5000);
+                pin_mut!(stream);
+                while let Some(Ok(light)) = stream.next().await {
+                    println!("esp connect");
+                    let mut app = app.lock().await;
+                    app.push_light(EspLight::new(light)).await;
                 }
             }
         })
@@ -55,7 +70,7 @@ fn main() {
                 )
                 .await
                 .unwrap();
-                app.lock().await.push_lights(lights);
+                app.lock().await.push_lights(lights).await;
             }
         })
         .detach();
@@ -76,7 +91,8 @@ fn main() {
         for device in sengled_api.get_devices().await.unwrap() {
             app.lock()
                 .await
-                .push_light(SengledLight::new(device, sengled_api.clone()));
+                .push_light(SengledLight::new(device, sengled_api.clone()))
+                .await;
         }
 
         server.await;

@@ -20,3 +20,5 @@ futures = "0.3.8"
 surf = { version = "2.1.0", default-features = false, features = ["h1-client"] }
 thiserror = "1.0.22"
 toml = "0.5.7"
+lights-esp-strip = { git = "https://github.com/syntacticsugarglider/lights-esp-strip", branch = "main" }
+openssl = { version = "0.10", features = ["vendored"] }

@@ -181,8 +181,6 @@ pub async fn fulfill(request: FulfillmentRequest, app: &mut App) -> FulfillmentR
                         });
                         for device in &command.devices {
                             for command in &command.execution {
-                                println!("{}", command.command);
-                                println!("{:?}", command.params);
                                 match &command.params {
                                     CommandParams::OnOff { on } => {
                                         let _ = app.set_state(&device.id, (*on).into()).await;
@@ -222,8 +220,11 @@ pub async fn fulfill(request: FulfillmentRequest, app: &mut App) -> FulfillmentR
                                                 )
                                                 .await;
                                         }
-                                        QueryColor::White { .. } => {
-                                            let _ = app.set_color(&device.id, Color::White).await;
+                                        QueryColor::White { temperature, .. } => {
+                                            let temperature = *temperature;
+                                            let _ = app
+                                                .set_color(&device.id, Color::White { temperature })
+                                                .await;
                                         }
                                     },
                                 }

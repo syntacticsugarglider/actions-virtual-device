@@ -55,12 +55,16 @@ impl crate::Light for SengledLight {
                     &self.light,
                     match color {
                         Color::Rgb { r, g, b } => (r, g, b),
-                        Color::White => (255, 255, 255),
+                        Color::White { .. } => (255, 255, 255),
                     },
                 )
                 .await
                 .map_err(|e| Box::new(e) as Box<dyn Error + Send>)
         })
+    }
+
+    fn unique_id<'a>(&'a self) -> BoxFuture<'a, Result<String, Box<dyn Error + Send>>> {
+        Box::pin(async move { Ok(format!("Sengled Light {:?}", self.light.uuid())) })
     }
 }
 
