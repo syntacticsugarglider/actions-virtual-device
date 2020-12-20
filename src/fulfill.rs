@@ -162,7 +162,7 @@ pub async fn fulfill(request: FulfillmentRequest, app: &mut App) -> FulfillmentR
                             color_model: "rgb".to_owned(),
                             color_temperature_range: ColorTemperatureRange {
                                 temperature_min_k: 2000,
-                                temperature_max_k: 9000,
+                                temperature_max_k: 7500,
                             },
                         },
                     })
