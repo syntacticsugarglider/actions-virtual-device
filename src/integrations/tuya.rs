@@ -53,25 +53,48 @@ impl crate::Light for TuyaLight {
     ) -> BoxFuture<'a, Result<(), Box<dyn Error + Send>>> {
         Box::pin(async move {
             self.api
-                .set_brightness(&self.light, brightness as u16)
+                .set_brightness(&self.light, brightness)
                 .await
                 .map_err(|e| Box::new(e) as Box<dyn Error + Send>)
         })
     }
 
-    fn set_color<'a>(&'a self, _: Color) -> BoxFuture<'a, Result<(), Box<dyn Error + Send>>> {
+    fn set_color<'a>(&'a self, color: Color) -> BoxFuture<'a, Result<(), Box<dyn Error + Send>>> {
         Box::pin(async move {
-            self.api
-                .set_color(
-                    &self.light,
-                    HsbColor {
-                        brightness: 255,
-                        saturation: 255,
-                        hue: 255,
-                    },
-                )
-                .await
-                .map_err(|e| Box::new(e) as Box<dyn Error + Send>)
+            match color {
+                Color::Rgb { r, g, b } => self
+                    .api
+                    .set_color(&self.light, {
+                        let r = r as f64 / 255.;
+                        let g = g as f64 / 255.;
+                        let b = b as f64 / 255.;
+                        let cmax = r.max(g.max(b));
+                        let cmin = r.min(g.min(b));
+                        let diff = cmax - cmin;
+                        HsbColor {
+                            brightness: (cmax * 100.) as u16,
+                            hue: if cmax == cmin {
+                                0.
+                            } else if cmax == r {
+                                (60. * ((g - b) / diff) + 360.) % 360.
+                            } else if cmax == g {
+                                (60. * ((b - r) / diff) + 120.) % 360.
+                            } else if cmax == b {
+                                (60. * ((r - g) / diff) + 240.) % 360.
+                            } else {
+                                panic!("cmax is not the value of any component")
+                            } as u16,
+                            saturation: if cmax == 0. { 0. } else { (diff / cmax) * 100. } as u16,
+                        }
+                    })
+                    .await
+                    .map_err(|e| Box::new(e) as Box<dyn Error + Send>),
+                Color::White { temperature } => self
+                    .api
+                    .set_color_temperature(&self.light, temperature)
+                    .await
+                    .map_err(|e| Box::new(e) as Box<dyn Error + Send>),
+            }
         })
     }
 
