@@ -72,7 +72,7 @@ impl crate::Light for TuyaLight {
                         let cmin = r.min(g.min(b));
                         let diff = cmax - cmin;
                         HsbColor {
-                            brightness: (cmax * 100.) as u16,
+                            brightness: (cmax * 100.) as u8,
                             hue: if cmax == cmin {
                                 0.
                             } else if cmax == r {
@@ -84,7 +84,7 @@ impl crate::Light for TuyaLight {
                             } else {
                                 panic!("cmax is not the value of any component")
                             } as u16,
-                            saturation: if cmax == 0. { 0. } else { (diff / cmax) * 100. } as u16,
+                            saturation: if cmax == 0. { 0. } else { (diff / cmax) * 100. } as u8,
                         }
                     })
                     .await

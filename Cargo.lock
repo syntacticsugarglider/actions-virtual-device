@@ -1349,7 +1349,7 @@ dependencies = [
 [[package]]
 name = "lights-tuya"
 version = "0.1.0"
-source = "git+https://github.com/syntacticsugarglider/lights-tuya?branch=main#ab0cdcc8b903010244d3bbfb6ee0adff2e20e7f2"
+source = "git+https://github.com/syntacticsugarglider/lights-tuya?branch=main#1d7681d5c1a27d3e16e829cc40d97ec86684b5b5"
 dependencies = [
  "encoding",
  "serde",
