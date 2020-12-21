@@ -1334,7 +1334,7 @@ dependencies = [
 [[package]]
 name = "lights-sengled"
 version = "0.1.0"
-source = "git+https://github.com/syntacticsugarglider/lights-sengled?branch=main#eca4e7bb3a4e36d95638da51eee3070c49c177d0"
+source = "git+https://github.com/syntacticsugarglider/lights-sengled?branch=main#af3867b52ed6794766812ec7fb16619e07093e36"
 dependencies = [
  "futures 0.3.8",
  "paho-mqtt",

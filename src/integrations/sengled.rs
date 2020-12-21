@@ -1,9 +1,9 @@
-use crate::{Color, PowerState};
+use crate::PowerState;
 use futures::{
     future::{BoxFuture, Either},
     TryFutureExt,
 };
-use lights_sengled::{Device, SengledApi};
+use lights_sengled::{Color, Device, SengledApi};
 use std::{
     error::Error,
     sync::{
@@ -48,14 +48,21 @@ impl crate::Light for SengledLight {
         })
     }
 
-    fn set_color<'a>(&'a self, color: Color) -> BoxFuture<'a, Result<(), Box<dyn Error + Send>>> {
+    fn set_color<'a>(
+        &'a self,
+        color: crate::Color,
+    ) -> BoxFuture<'a, Result<(), Box<dyn Error + Send>>> {
         Box::pin(async move {
             self.api
                 .set_color(
                     &self.light,
                     match color {
-                        Color::Rgb { r, g, b } => (r, g, b),
-                        Color::White { .. } => (255, 255, 255),
+                        crate::Color::Rgb { r, g, b } => Color::Rgb {
+                            red: r,
+                            green: g,
+                            blue: b,
+                        },
+                        crate::Color::White { temperature } => Color::White { temperature },
                     },
                 )
                 .await
