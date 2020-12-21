@@ -34,7 +34,6 @@ fn main() {
                 let stream = listen(5000);
                 pin_mut!(stream);
                 while let Some(Ok(light)) = stream.next().await {
-                    println!("esp connect");
                     let mut app = app.lock().await;
                     app.push_light(EspLight::new(light)).await;
                 }
