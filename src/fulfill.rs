@@ -186,31 +186,34 @@ pub async fn fulfill(request: FulfillmentRequest, app: &mut App) -> FulfillmentR
                                         let _ = app.set_state(&device.id, (*on).into()).await;
                                     }
                                     CommandParams::Brightness { brightness } => {
-                                        let _ = app
+                                        if let Ok(_) = app
                                             .set_brightness(
                                                 &device.id,
                                                 ((*brightness as f32 / 100.) * 255.) as u8,
                                             )
-                                            .await;
+                                            .await
+                                        {
+                                            let _ = app.set_state(&device.id, true.into()).await;
+                                        }
                                     }
-                                    CommandParams::Color { color } => match color {
-                                        QueryColor::Rgb { spectrum_rgb, .. } => {
-                                            let color = format!("{:06X}", spectrum_rgb)
-                                                .as_bytes()
-                                                .chunks(2)
-                                                .map(|byte| {
-                                                    u8::from_str_radix(
-                                                        &format!(
-                                                            "{}{}",
-                                                            byte[0] as char, byte[1] as char
-                                                        ),
-                                                        16,
-                                                    )
-                                                    .unwrap()
-                                                })
-                                                .collect::<Vec<_>>();
-                                            let _ = app
-                                                .set_color(
+                                    CommandParams::Color { color } => {
+                                        if let Ok(_) = match color {
+                                            QueryColor::Rgb { spectrum_rgb, .. } => {
+                                                let color = format!("{:06X}", spectrum_rgb)
+                                                    .as_bytes()
+                                                    .chunks(2)
+                                                    .map(|byte| {
+                                                        u8::from_str_radix(
+                                                            &format!(
+                                                                "{}{}",
+                                                                byte[0] as char, byte[1] as char
+                                                            ),
+                                                            16,
+                                                        )
+                                                        .unwrap()
+                                                    })
+                                                    .collect::<Vec<_>>();
+                                                app.set_color(
                                                     &device.id,
                                                     Color::Rgb {
                                                         r: color[0],
@@ -218,15 +221,20 @@ pub async fn fulfill(request: FulfillmentRequest, app: &mut App) -> FulfillmentR
                                                         b: color[2],
                                                     },
                                                 )
-                                                .await;
+                                                .await
+                                            }
+                                            QueryColor::White { temperature, .. } => {
+                                                let temperature = *temperature;
+                                                app.set_color(
+                                                    &device.id,
+                                                    Color::White { temperature },
+                                                )
+                                                .await
+                                            }
+                                        } {
+                                            let _ = app.set_state(&device.id, true.into()).await;
                                         }
-                                        QueryColor::White { temperature, .. } => {
-                                            let temperature = *temperature;
-                                            let _ = app
-                                                .set_color(&device.id, Color::White { temperature })
-                                                .await;
-                                        }
-                                    },
+                                    }
                                 }
                             }
                         }
