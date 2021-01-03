@@ -6,6 +6,8 @@ use futures::{
 use smol::lock::Mutex;
 use std::{
     error::Error,
+    io,
+    net::IpAddr,
     sync::atomic::{AtomicUsize, Ordering},
 };
 
@@ -22,6 +24,15 @@ struct LightData {
 pub struct EspLight {
     name: String,
     data: Mutex<LightData>,
+}
+
+impl EspLight {
+    pub async fn addr(&self) -> Result<IpAddr, io::Error> {
+        self.data.lock().await.light.addr()
+    }
+    pub async fn try_program(&self, binary: &[u8]) {
+        let _ = self.data.lock().await.light.program(binary).await;
+    }
 }
 
 impl crate::Light for EspLight {

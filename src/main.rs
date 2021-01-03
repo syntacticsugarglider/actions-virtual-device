@@ -1,6 +1,7 @@
-use std::{convert::Infallible, sync::Arc};
+use std::{collections::HashMap, convert::Infallible, net::IpAddr, sync::Arc};
 
 use async_compat::Compat;
+use bytes::Bytes;
 use futures::{pin_mut, StreamExt};
 use lights::{tuya_scan, BroadlinkLight, EspLight, SengledLight};
 use lights_broadlink::discover;
@@ -28,14 +29,22 @@ fn main() {
         })
         .detach();
 
+        let esp_lights = Arc::new(Mutex::new(HashMap::new()));
+
         smol::spawn({
             let app = app.clone();
+            let esp_lights = esp_lights.clone();
             async move {
                 let stream = listen(5000);
                 pin_mut!(stream);
                 while let Some(Ok(light)) = stream.next().await {
                     let mut app = app.lock().await;
-                    app.push_light(EspLight::new(light)).await;
+                    let light = Arc::new(EspLight::new(light));
+                    app.push_light(light.clone()).await;
+                    esp_lights
+                        .lock()
+                        .await
+                        .insert(light.addr().await.unwrap(), light);
                 }
             }
         })
@@ -59,6 +68,23 @@ fn main() {
                 async move { lights::hook(data, &mut *app.lock().await).await }
             }
         });
+        let upload = warp::path!("upload" / String)
+            .and(warp::body::bytes())
+            .and_then({
+                move |id: String, binary: Bytes| {
+                    let esp_lights = esp_lights.clone();
+                    async move {
+                        let binary: &[u8] = binary.as_ref();
+                        let addr: Result<IpAddr, _> = id.parse();
+                        if let Ok(addr) = addr {
+                            if let Some(light) = esp_lights.lock().await.get(&addr) {
+                                light.try_program(&binary).await;
+                            }
+                        }
+                        Ok::<_, Infallible>(format!(""))
+                    }
+                }
+            });
 
         smol::spawn({
             let app = app.clone();
@@ -75,7 +101,7 @@ fn main() {
         .detach();
 
         let server = smol::spawn(Compat::new(
-            warp::serve(lights::auth().or(fulfill).or(hook)).run(([127, 0, 0, 1], 8080)),
+            warp::serve(lights::auth().or(fulfill).or(upload).or(hook)).run(([127, 0, 0, 1], 8080)),
         ));
 
         let sengled_api = Arc::new(
