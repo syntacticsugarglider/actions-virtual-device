@@ -84,7 +84,7 @@ impl crate::Light for TuyaLight {
                             } else {
                                 panic!("cmax is not the value of any component")
                             } as u16,
-                            saturation: if cmax == 0. { 0. } else { (diff / cmax) * 100. } as u8,
+                            saturation: if cmax == 0. { 0. } else { diff / cmax } as f32,
                         }
                     })
                     .await
