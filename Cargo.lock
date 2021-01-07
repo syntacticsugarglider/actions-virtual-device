@@ -1326,7 +1326,7 @@ dependencies = [
 [[package]]
 name = "lights-esp-strip"
 version = "0.1.0"
-source = "git+https://github.com/syntacticsugarglider/lights-esp-strip?branch=main#744c946f4a44b5953ca9181d8b2996c6f3849818"
+source = "git+https://github.com/syntacticsugarglider/lights-esp-strip?branch=main#37ca9ddf113554c7498565e56ea8f95925292dbc"
 dependencies = [
  "futures 0.3.8",
  "smol",

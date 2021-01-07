@@ -33,6 +33,9 @@ impl EspLight {
     pub async fn try_program(&self, binary: &[u8]) {
         let _ = self.data.lock().await.light.program(binary).await;
     }
+    pub async fn try_write(&self, binary: &[u8]) {
+        let _ = self.data.lock().await.light.write(binary).await;
+    }
 }
 
 impl crate::Light for EspLight {

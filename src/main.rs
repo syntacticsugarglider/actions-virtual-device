@@ -68,7 +68,29 @@ fn main() {
                 async move { lights::hook(data, &mut *app.lock().await).await }
             }
         });
+
         let upload = warp::path!("upload" / String)
+            .and(warp::body::bytes())
+            .and_then({
+                {
+                    let esp_lights = esp_lights.clone();
+                    move |id: String, binary: Bytes| {
+                        let esp_lights = esp_lights.clone();
+                        async move {
+                            let binary: &[u8] = binary.as_ref();
+                            let addr: Result<IpAddr, _> = id.parse();
+                            if let Ok(addr) = addr {
+                                if let Some(light) = esp_lights.lock().await.get(&addr) {
+                                    light.try_program(&binary).await;
+                                }
+                            }
+                            Ok::<_, Infallible>(format!(""))
+                        }
+                    }
+                }
+            });
+
+        let write = warp::path!("write" / String)
             .and(warp::body::bytes())
             .and_then({
                 move |id: String, binary: Bytes| {
@@ -78,7 +100,7 @@ fn main() {
                         let addr: Result<IpAddr, _> = id.parse();
                         if let Ok(addr) = addr {
                             if let Some(light) = esp_lights.lock().await.get(&addr) {
-                                light.try_program(&binary).await;
+                                light.try_write(&binary).await;
                             }
                         }
                         Ok::<_, Infallible>(format!(""))
@@ -101,7 +123,8 @@ fn main() {
         .detach();
 
         let server = smol::spawn(Compat::new(
-            warp::serve(lights::auth().or(fulfill).or(upload).or(hook)).run(([127, 0, 0, 1], 8080)),
+            warp::serve(lights::auth().or(fulfill).or(upload).or(write).or(hook))
+                .run(([127, 0, 0, 1], 8080)),
         ));
 
         let sengled_api = Arc::new(
