@@ -10,6 +10,8 @@ use lights_sengled::SengledApi;
 use smol::{block_on, lock::Mutex};
 use warp::Filter;
 
+const AUTH_TOKEN: &'static str = env!("ESP_AUTH_TOKEN");
+
 fn main() {
     block_on(async move {
         let app = Arc::new(Mutex::new(lights::App::new()));
@@ -69,14 +71,17 @@ fn main() {
             }
         });
 
-        let upload = warp::path!("upload" / String)
+        let upload = warp::path!("upload" / String / String)
             .and(warp::body::bytes())
             .and_then({
                 {
                     let esp_lights = esp_lights.clone();
-                    move |id: String, binary: Bytes| {
+                    move |token: String, id: String, binary: Bytes| {
                         let esp_lights = esp_lights.clone();
                         async move {
+                            if token != AUTH_TOKEN {
+                                return Ok::<_, Infallible>(format!(""));
+                            }
                             let binary: &[u8] = binary.as_ref();
                             let addr: Result<IpAddr, _> = id.parse();
                             if let Ok(addr) = addr {
@@ -90,12 +95,15 @@ fn main() {
                 }
             });
 
-        let write = warp::path!("write" / String)
+        let write = warp::path!("write" / String / String)
             .and(warp::body::bytes())
             .and_then({
-                move |id: String, binary: Bytes| {
+                move |token: String, id: String, binary: Bytes| {
                     let esp_lights = esp_lights.clone();
                     async move {
+                        if token != AUTH_TOKEN {
+                            return Ok::<_, Infallible>(format!(""));
+                        }
                         let binary: &[u8] = binary.as_ref();
                         let addr: Result<IpAddr, _> = id.parse();
                         if let Ok(addr) = addr {
