@@ -14,7 +14,6 @@ http = "0.2.2"
 bytes = "0.5.6"
 serde_json = "1.0.60"
 lights-broadlink = { git = "https://github.com/syntacticsugarglider/lights-broadlink", branch = "main" }
-lights-sengled = { git = "https://github.com/syntacticsugarglider/lights-sengled", branch = "main" }
 lights-tuya = { git = "https://github.com/syntacticsugarglider/lights-tuya", branch = "main" }
 futures = "0.3.8"
 surf = { version = "2.1.0", default-features = false, features = ["h1-client"] }

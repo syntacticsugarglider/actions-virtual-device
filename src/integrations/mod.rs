@@ -4,7 +4,7 @@ use crate::Light;
 
 pub mod broadlink;
 pub mod esp;
-pub mod sengled;
+// pub mod sengled;
 pub mod tuya;
 
 impl<T: Light> Light for Arc<T> {

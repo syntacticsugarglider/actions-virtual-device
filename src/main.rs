@@ -3,10 +3,9 @@ use std::{collections::HashMap, convert::Infallible, io::Read, net::IpAddr, sync
 use async_compat::Compat;
 use bytes::Bytes;
 use futures::{pin_mut, StreamExt};
-use lights::{tuya_scan, BroadlinkLight, EspLight, SengledLight};
+use lights::{tuya_scan, BroadlinkLight, EspLight};
 use lights_broadlink::discover;
 use lights_esp_strip::listen;
-use lights_sengled::SengledApi;
 use smol::{block_on, lock::Mutex};
 use warp::Filter;
 
@@ -141,22 +140,6 @@ fn main() {
             )
             .run(([127, 0, 0, 1], 8080)),
         ));
-
-        let sengled_api = Arc::new(
-            SengledApi::new(
-                std::env::var("SENGLED_USER").unwrap(),
-                std::env::var("SENGLED_PASS").unwrap(),
-            )
-            .await
-            .unwrap(),
-        );
-
-        for device in sengled_api.get_devices().await.unwrap() {
-            app.lock()
-                .await
-                .push_light(SengledLight::new(device, sengled_api.clone()))
-                .await;
-        }
 
         server.await;
     });

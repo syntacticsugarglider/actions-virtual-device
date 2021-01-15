@@ -21,7 +21,7 @@ pub use api::api;
 mod integrations;
 pub use integrations::broadlink::BroadlinkLight;
 pub use integrations::esp::EspLight;
-pub use integrations::sengled::SengledLight;
+// pub use integrations::sengled::SengledLight;
 pub use integrations::tuya::{tuya_scan, TuyaLight};
 
 pub enum PowerState {
