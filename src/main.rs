@@ -63,13 +63,6 @@ fn main() {
                 }
             }
         });
-        let hook = warp::path("hook").and(warp::body::json()).and_then({
-            let app = app.clone();
-            move |data| {
-                let app = app.clone();
-                async move { lights::hook(data, &mut *app.lock().await).await }
-            }
-        });
 
         let upload = warp::path!("upload" / String / String)
             .and(warp::body::bytes())
@@ -131,7 +124,7 @@ fn main() {
         .detach();
 
         let server = smol::spawn(Compat::new(
-            warp::serve(lights::auth().or(fulfill).or(upload).or(write).or(hook))
+            warp::serve(lights::auth().or(fulfill).or(upload).or(write))
                 .run(([127, 0, 0, 1], 8080)),
         ));
 

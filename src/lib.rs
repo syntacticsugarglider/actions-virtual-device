@@ -1,5 +1,4 @@
 use std::{
-    borrow::Borrow,
     collections::HashMap,
     error::Error as StdError,
     sync::{
@@ -11,11 +10,7 @@ use std::{
 mod auth;
 pub use auth::auth;
 mod fulfill;
-mod hook;
 pub use fulfill::fulfill;
-pub use hook::hook;
-mod util;
-use util::format_list;
 mod request_sync;
 use futures::future::BoxFuture;
 use request_sync::request_sync;
@@ -128,8 +123,6 @@ struct Id(String);
 
 pub struct App {
     by_id: HashMap<Id, Arc<LightWrapper>>,
-    by_name: HashMap<String, Arc<LightWrapper>>,
-    groups: HashMap<String, Vec<Arc<LightWrapper>>>,
 }
 
 struct LightWrapper {
@@ -172,8 +165,6 @@ pub enum Error {
 impl App {
     pub fn new() -> App {
         App {
-            by_name: HashMap::new(),
-            groups: HashMap::new(),
             by_id: HashMap::new(),
         }
     }
@@ -220,12 +211,6 @@ impl App {
         })
         .detach();
     }
-    fn groups(&self) -> impl ExactSizeIterator<Item = &String> {
-        self.groups.keys()
-    }
-    fn light_names<'a>(&'a self) -> impl ExactSizeIterator<Item = String> + 'a {
-        self.by_id.values().map(|light| light.name())
-    }
     fn lights(&self) -> impl ExactSizeIterator<Item = &LightWrapper> {
         self.by_id.values().map(|light| light.as_ref())
     }
@@ -252,24 +237,5 @@ impl App {
         wrapper.color.store(color, Ordering::SeqCst);
         wrapper.light().set_color(color).await?;
         Ok(())
-    }
-    fn add_lights(&mut self, group: &str, lights: impl IntoIterator<Item = String>) {
-        let lights = lights
-            .into_iter()
-            .map(|light| self.by_name.get(&light).unwrap().clone())
-            .collect::<Vec<_>>();
-        self.groups.get_mut(group).unwrap().extend(lights)
-    }
-    fn group(&self, group: &str) -> Option<&[Arc<LightWrapper>]> {
-        self.groups.get(group).map(|a| a.as_slice())
-    }
-    fn has_group(&self, group: &str) -> bool {
-        self.groups.contains_key(group)
-    }
-    fn absent<'a, T: Borrow<String>, I: Iterator<Item = T> + 'a>(
-        &'a self,
-        lights: I,
-    ) -> impl Iterator<Item = T> + 'a {
-        lights.filter(move |light| !self.by_name.contains_key(light.borrow()))
     }
 }
