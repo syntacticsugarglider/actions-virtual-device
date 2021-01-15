@@ -15,6 +15,8 @@ mod request_sync;
 use futures::future::BoxFuture;
 use request_sync::request_sync;
 use thiserror::Error;
+mod api;
+pub use api::api;
 
 mod integrations;
 pub use integrations::broadlink::BroadlinkLight;
@@ -151,6 +153,9 @@ impl LightWrapper {
     }
     fn color(&self) -> u32 {
         self.color.load(Ordering::SeqCst).to_spectrum()
+    }
+    fn rgb_color(&self) -> Color {
+        self.color.load(Ordering::SeqCst)
     }
 }
 

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, convert::Infallible, net::IpAddr, sync::Arc};
+use std::{collections::HashMap, convert::Infallible, io::Read, net::IpAddr, sync::Arc};
 
 use async_compat::Compat;
 use bytes::Bytes;
@@ -124,8 +124,22 @@ fn main() {
         .detach();
 
         let server = smol::spawn(Compat::new(
-            warp::serve(lights::auth().or(fulfill).or(upload).or(write))
-                .run(([127, 0, 0, 1], 8080)),
+            warp::serve(
+                lights::api(app.clone())
+                    .or(lights::auth())
+                    .or(fulfill)
+                    .or(upload)
+                    .or(write)
+                    .or(warp::path::end().map(|| {
+                        let mut string = String::new();
+                        std::fs::File::open("ui.html")
+                            .unwrap()
+                            .read_to_string(&mut string)
+                            .unwrap();
+                        warp::reply::html(string)
+                    })),
+            )
+            .run(([127, 0, 0, 1], 8080)),
         ));
 
         let sengled_api = Arc::new(
