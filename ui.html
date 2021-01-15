@@ -205,6 +205,12 @@
             outline: none;
             border: none;
         }
+
+        .takeout {
+            float: right;
+            text-decoration: underline;
+            cursor: pointer;
+        }
     </style>
 </head>
 
@@ -220,6 +226,8 @@
         </div>
     </div>
     <div class="container">
+        <p class="takeout">download db
+        </p>
         <h2>All lights</h2>
         <div class="lights"></div>
 
@@ -321,6 +329,25 @@
                 }
             });
         };
+
+        let saveData = (function () {
+            var a = document.createElement("a");
+            document.body.appendChild(a);
+            a.style = "display: none";
+            return function (data, fileName) {
+                var json = JSON.stringify(data),
+                    blob = new Blob([json], { type: "octet/stream" }),
+                    url = window.URL.createObjectURL(blob);
+                a.href = url;
+                a.download = fileName;
+                a.click();
+                window.URL.revokeObjectURL(url);
+            };
+        }());
+
+        document.querySelector('.takeout').addEventListener('click', () => {
+            saveData(names, 'lights.json');
+        });
     </script>
 </body>
 
