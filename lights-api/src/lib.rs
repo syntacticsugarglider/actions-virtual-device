@@ -4,11 +4,21 @@ use serde::{Deserialize, Serialize};
 pub enum Request {
     Enumerate,
     CheckAuth,
+    MakeGroup { lights: Vec<String>, id: String },
+    AddLightToGroup { light: String, group: String },
+    RemoveLightFromGroup { light: String, group: String },
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct EnumerateResponse {
     pub lights: Vec<Light>,
+    pub groups: Vec<Group>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Group {
+    pub name: String,
+    pub lights: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -31,6 +41,63 @@ impl IntoRequest for Enumerate {
 
     fn into_request(self) -> Request {
         Request::Enumerate
+    }
+}
+
+pub struct AddLightToGroup {
+    pub light: String,
+    pub group: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct AddLightToGroupResponse;
+
+impl IntoRequest for AddLightToGroup {
+    type Response = AddLightToGroupResponse;
+
+    fn into_request(self) -> Request {
+        Request::AddLightToGroup {
+            light: self.light,
+            group: self.group,
+        }
+    }
+}
+
+pub struct RemoveLightFromGroup {
+    pub light: String,
+    pub group: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct RemoveLightFromGroupResponse;
+
+impl IntoRequest for RemoveLightFromGroup {
+    type Response = RemoveLightFromGroupResponse;
+
+    fn into_request(self) -> Request {
+        Request::RemoveLightFromGroup {
+            light: self.light,
+            group: self.group,
+        }
+    }
+}
+
+pub struct MakeGroup {
+    pub lights: Vec<String>,
+    pub id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct MakeGroupResponse;
+
+impl IntoRequest for MakeGroup {
+    type Response = MakeGroupResponse;
+
+    fn into_request(self) -> Request {
+        Request::MakeGroup {
+            lights: self.lights,
+            id: self.id,
+        }
     }
 }
 

@@ -22,6 +22,7 @@ toml = "0.5.7"
 lights-esp-strip = { git = "https://github.com/syntacticsugarglider/lights-esp-strip", branch = "main" }
 openssl = { version = "0.10", features = ["vendored"] }
 lights-api = { path = "./lights-api" }
+lazy_static = "1.4.0"
 
 [workspace]
 members = [".", "lights-api"]

@@ -6,14 +6,17 @@ use futures::{pin_mut, StreamExt};
 use lights::{tuya_scan, BroadlinkLight, EspLight};
 use lights_broadlink::discover;
 use lights_esp_strip::listen;
-use smol::{block_on, lock::Mutex};
+use smol::{
+    block_on,
+    lock::{Mutex, RwLock},
+};
 use warp::Filter;
 
 const AUTH_TOKEN: &'static str = env!("ESP_AUTH_TOKEN");
 
 fn main() {
     block_on(async move {
-        let app = Arc::new(Mutex::new(lights::App::new()));
+        let app = Arc::new(RwLock::new(lights::App::new()));
 
         smol::spawn({
             let app = app.clone();
@@ -23,7 +26,7 @@ fn main() {
                 while let Some(Ok(light)) = stream.next().await {
                     let mut light = light.connect().await.unwrap();
                     light.set_transition_duration(0).await.unwrap();
-                    let mut app = app.lock().await;
+                    let mut app = app.write().await;
                     app.push_light(BroadlinkLight::new(light)).await;
                 }
             }
@@ -39,7 +42,7 @@ fn main() {
                 let stream = listen(5000);
                 pin_mut!(stream);
                 while let Some(Ok(light)) = stream.next().await {
-                    let mut app = app.lock().await;
+                    let mut app = app.write().await;
                     let light = Arc::new(EspLight::new(light));
                     app.push_light(light.clone()).await;
                     esp_lights
@@ -57,7 +60,7 @@ fn main() {
                 let app = app.clone();
                 async move {
                     Ok::<_, Infallible>(warp::reply::json(
-                        &lights::fulfill(data, &mut *app.lock().await).await,
+                        &lights::fulfill(data, &*app.read().await).await,
                     ))
                 }
             }
@@ -117,7 +120,7 @@ fn main() {
                 )
                 .await
                 .unwrap();
-                app.lock().await.push_lights(lights).await;
+                app.write().await.push_lights(lights).await;
             }
         })
         .detach();

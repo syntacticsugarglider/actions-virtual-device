@@ -24,6 +24,7 @@ pub use integrations::esp::EspLight;
 // pub use integrations::sengled::SengledLight;
 pub use integrations::tuya::{tuya_scan, TuyaLight};
 
+#[derive(Clone, Copy)]
 pub enum PowerState {
     On,
     Off,
@@ -219,7 +220,7 @@ impl App {
     fn lights(&self) -> impl ExactSizeIterator<Item = &LightWrapper> {
         self.by_id.values().map(|light| light.as_ref())
     }
-    async fn set_state(&mut self, id: &str, state: PowerState) -> Result<(), Error> {
+    async fn set_state(&self, id: &str, state: PowerState) -> Result<(), Error> {
         let wrapper = self.by_id.get(&Id(id.into())).ok_or(Error::Absent)?;
         wrapper.is_on.store(
             match state {
@@ -231,13 +232,13 @@ impl App {
         wrapper.light().set_power_state(state).await?;
         Ok(())
     }
-    async fn set_brightness(&mut self, id: &str, brightness: u8) -> Result<(), Error> {
+    async fn set_brightness(&self, id: &str, brightness: u8) -> Result<(), Error> {
         let wrapper = self.by_id.get(&Id(id.into())).ok_or(Error::Absent)?;
         wrapper.brightness.store(brightness, Ordering::SeqCst);
         wrapper.light().set_brightness(brightness).await?;
         Ok(())
     }
-    async fn set_color(&mut self, id: &str, color: Color) -> Result<(), Error> {
+    async fn set_color(&self, id: &str, color: Color) -> Result<(), Error> {
         let wrapper = self.by_id.get(&Id(id.into())).ok_or(Error::Absent)?;
         wrapper.color.store(color, Ordering::SeqCst);
         wrapper.light().set_color(color).await?;

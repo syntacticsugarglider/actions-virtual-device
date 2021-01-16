@@ -1197,6 +1197,7 @@ dependencies = [
  "bytes",
  "futures",
  "http",
+ "lazy_static",
  "lights-api",
  "lights-broadlink",
  "lights-esp-strip",

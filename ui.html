@@ -42,11 +42,6 @@
 
         p {
             max-width: 500px;
-            margin-top: 16px !important;
-        }
-
-        p:nth-child(3) {
-            margin-top: 32px !important;
         }
 
         h1,
@@ -101,6 +96,7 @@
             width: 100vw;
             height: 100vh;
             display: flex;
+            background: rgba(255, 255, 255, 0.8);
             position: absolute;
             justify-content: center;
             align-items: center;
@@ -165,7 +161,7 @@
             width: 100%;
         }
 
-        .id {
+        .lights .id {
             --font-size: 0.5em;
             font-family: monospace;
             bottom: 3px;
@@ -175,6 +171,15 @@
             position: absolute;
         }
 
+        .groups .id {
+            font-size: 0.5em;
+            font-family: monospace;
+            margin-top: 4px;
+            width: 100%;
+            border-bottom: 1px solid black;
+            margin-bottom: 4px;
+        }
+
         .mode {
             position: absolute;
             right: 2px;
@@ -182,7 +187,7 @@
             --font-size: 0.5em;
         }
 
-        .light {
+        .lights .light {
             border: 1px solid black;
             position: relative;
             background: white;
@@ -192,6 +197,7 @@
 
         .lights {
             margin-top: 48px;
+            margin-bottom: 64px;
         }
 
         .light.off {
@@ -206,10 +212,95 @@
             border: none;
         }
 
-        .takeout {
-            float: right;
+        .takeout,
+        .ingest,
+        .clear {
             text-decoration: underline;
             cursor: pointer;
+        }
+
+        .right {
+            float: right;
+        }
+
+        .right p {
+            display: inline-block;
+        }
+
+        .groups {
+            margin-top: 48px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-gap: 16px;
+            width: 100%;
+            grid-auto-rows: 1fr;
+        }
+
+        .groups button {
+            border: 1px solid black;
+            outline: none;
+            cursor: pointer;
+            background-color: rgba(255, 255, 255, 1);
+        }
+
+        .groups>button {
+            min-height: 48px;
+        }
+
+        .group {
+            padding: 16px;
+            background: white;
+            font-size: 13.3px;
+            --font-size: 13.3px;
+            border: 1px solid black;
+        }
+
+        .groups button:hover {
+            background: rgba(255, 255, 255, 0.6);
+        }
+
+        .addlight {
+            display: flex;
+            flex-flow: row nowrap;
+            margin-top: 8px;
+        }
+
+        .addlight input {
+            outline: none;
+            border: none;
+            border-bottom: 1px dashed black;
+            width: 100%;
+        }
+
+        .addlight button,
+        .groups .light button {
+            padding: 5px;
+            padding-bottom: 4px;
+            margin-left: 8px;
+            font-size: 0.5em;
+            font-family: monospace;
+            opacity: 0.75;
+        }
+
+        .addlight button:hover,
+        .groups .light button:hover {
+            opacity: 1;
+            background: rgba(0, 0, 0, 0.05);
+        }
+
+        .groups .light {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .groups .light:not(:last-child) {
+            border-bottom: 1px dashed rgba(0, 0, 0, 255);
+            padding-bottom: 4px;
+        }
+
+        .groups .light:not(:first-child) {
+            padding-top: 4px;
         }
     </style>
 </head>
@@ -226,11 +317,16 @@
         </div>
     </div>
     <div class="container">
-        <p class="takeout">download db
-        </p>
+        <div class="right">
+            <p class="takeout">download
+            </p> or <p class="ingest">upload</p> db, or <p class="clear">reset</p>
+        </div>
         <h2>All lights</h2>
         <div class="lights"></div>
-
+        <h2>All groups</h2>
+        <div class="groups">
+            <button class="newgroup">+ NEW GROUP</button>
+        </div>
     </div>
     <div class="grid"></div>
 
@@ -311,15 +407,102 @@
             input.addEventListener('change', () => {
                 names[light.id] = input.value;
                 localStorage.setItem('names', JSON.stringify(names));
+                window.location.reload();
+            });
+            return div;
+        };
+
+        let groups = {};
+
+        const makeGroup = (group) => {
+            groups[group.name.split(' ')[1]] = group.lights;
+            let div = document.createElement('div');
+            div.classList.add('group');
+            div.innerHTML = `
+                <p class="name">${names[group.name] || '(unnamed)'}</div>
+                <div class="id">${group.name.split(' ')[1]}</div>
+                <div class="lightlist"></div>
+                <div class="addlight">
+                    <input type="text" placeholder="light name"/>
+                    <button>ADD</button>
+                </div>
+            `;
+            const lightList = div.querySelector('.lightlist');
+            for (let light of group.lights) {
+                const el = document.createElement('div');
+                el.classList.add('light');
+                el.innerHTML = `
+                    ${names[light]} <button>DEL</button>
+                `;
+                el.querySelector('button').addEventListener('click', () => {
+                    request({
+                        RemoveLightFromGroup: {
+                            group: group.name.split(' ')[1],
+                            light
+                        }
+                    });
+                    window.location.reload();
+                });
+                lightList.appendChild(el);
+            }
+            const lightName = div.querySelector('.addlight input');
+            lightName.addEventListener('keydown', (e) => {
+                if (e.keyCode === 13) {
+                    div.querySelector('.addlight button').click();
+                }
+            });
+            div.querySelector('.addlight button').addEventListener('click', () => {
+                if (!lightName.value) {
+                    return;
+                }
+                let light = null;
+                for (let key in names) {
+                    if (names[key] == lightName.value) {
+                        light = key;
+                        break;
+                    }
+                }
+                if (light === null) {
+                    lightName.value = '';
+                    return;
+                }
+                request({
+                    AddLightToGroup: {
+                        group: group.name.split(' ')[1],
+                        light
+                    }
+                });
+                window.location.reload();
             });
             return div;
         };
 
         const init = async () => {
             let data = await request('Enumerate');
+            const lights = document.querySelector('.lights');
+            const groups_el = document.querySelector('.groups');
             for (let light of data.lights) {
-                document.querySelector('.lights').appendChild(makeLight(light));
+                lights.appendChild(makeLight(light));
             }
+            for (let group of data.groups) {
+                groups_el.prepend(makeGroup(group));
+            }
+            const maybe_groups = JSON.parse(localStorage.getItem('groups'));
+            if (maybe_groups) {
+                let rel = false;
+                for (let group in maybe_groups) {
+                    if (!(group in groups)) {
+                        await request({ MakeGroup: { lights: maybe_groups[group], id: group } }).uuid;
+                        rel = true;
+                    }
+                }
+                if (rel) {
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 50);
+                }
+            }
+            localStorage.setItem('groups', JSON.stringify(groups));
             if (names === null) {
                 names = {}
             }
@@ -345,8 +528,65 @@
             };
         }());
 
+        function asyncRead(file) {
+            return new Promise((resolve, reject) => {
+                let reader = new FileReader();
+
+                reader.onload = () => {
+                    resolve(reader.result);
+                };
+
+                reader.onerror = reject;
+
+                reader.readAsText(file);
+            })
+        }
+
+        const handleUpload = async (e) => {
+            let file = await asyncRead(e.target.files[0]);
+            try {
+                let data = JSON.parse(file);
+                localStorage.setItem('names', JSON.stringify(data.names));
+                localStorage.setItem('groups', JSON.stringify(data.groups));
+                window.location.reload();
+            } catch { }
+        };
+
+        let fileDialog = (function () {
+            var a = document.createElement("input");
+            a.addEventListener('change', handleUpload);
+            a.setAttribute('type', 'file');
+            document.body.appendChild(a);
+            a.style = "display: none";
+            return async function () {
+                a.click();
+            };
+        }());
+
         document.querySelector('.takeout').addEventListener('click', () => {
-            saveData(names, 'lights.json');
+            saveData({ names: names, groups: groups }, 'lights.json');
+        });
+
+        document.querySelector('.ingest').addEventListener('click', () => {
+            fileDialog();
+        });
+        document.querySelector('.clear').addEventListener('click', () => {
+            if (confirm("Are you sure you want to erase the database and log out?")) {
+                localStorage.clear();
+                window.location.reload();
+            }
+        });
+
+        function uuidv4() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+                var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+        document.querySelector('.newgroup').addEventListener('click', async () => {
+            let uuid = await request({ MakeGroup: { lights: [], id: uuidv4() } }).uuid;
+            window.location.reload();
         });
     </script>
 </body>

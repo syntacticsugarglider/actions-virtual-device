@@ -140,7 +140,7 @@ struct Name {
     name: String,
 }
 
-pub async fn fulfill(request: FulfillmentRequest, app: &mut App) -> FulfillmentResponse {
+pub async fn fulfill(request: FulfillmentRequest, app: &App) -> FulfillmentResponse {
     let mut payload = None;
     for input in &request.inputs {
         if input.intent == "action.devices.SYNC" {
