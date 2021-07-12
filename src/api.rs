@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use futures::{stream::iter, StreamExt};
+use futures::{future::join_all, stream::iter, StreamExt};
 use lazy_static::lazy_static;
 use lights_api::{Light, Request, State};
 use smol::lock::{Mutex, RwLock};
@@ -118,13 +118,24 @@ impl crate::Light for Group {
         state: crate::PowerState,
     ) -> futures::future::BoxFuture<'a, Result<(), Box<dyn std::error::Error + Send>>> {
         Box::pin(async move {
-            let app = self.app.read().await;
-            for light in &*self.lights.lock().await {
-                app.set_state(&*light, state)
-                    .await
-                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send>)?;
+            if let Some(e) = join_all(self.lights.lock().await.iter().cloned().map(|light| {
+                let app = self.app.clone();
+                async move {
+                    app.read()
+                        .await
+                        .set_state(&*light, state)
+                        .await
+                        .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send>)
+                }
+            }))
+            .await
+            .into_iter()
+            .find_map(|res| res.err())
+            {
+                Err(e)
+            } else {
+                Ok(())
             }
-            Ok(())
         })
     }
 
@@ -133,13 +144,24 @@ impl crate::Light for Group {
         brightness: u8,
     ) -> futures::future::BoxFuture<'a, Result<(), Box<dyn std::error::Error + Send>>> {
         Box::pin(async move {
-            let app = self.app.read().await;
-            for light in &*self.lights.lock().await {
-                app.set_brightness(&*light, brightness)
-                    .await
-                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send>)?;
+            if let Some(e) = join_all(self.lights.lock().await.iter().cloned().map(|light| {
+                let app = self.app.clone();
+                async move {
+                    app.read()
+                        .await
+                        .set_brightness(&*light, brightness)
+                        .await
+                        .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send>)
+                }
+            }))
+            .await
+            .into_iter()
+            .find_map(|res| res.err())
+            {
+                Err(e)
+            } else {
+                Ok(())
             }
-            Ok(())
         })
     }
 
@@ -148,13 +170,24 @@ impl crate::Light for Group {
         color: Color,
     ) -> futures::future::BoxFuture<'a, Result<(), Box<dyn std::error::Error + Send>>> {
         Box::pin(async move {
-            let app = self.app.read().await;
-            for light in &*self.lights.lock().await {
-                app.set_color(&*light, color)
-                    .await
-                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send>)?;
+            if let Some(e) = join_all(self.lights.lock().await.iter().cloned().map(|light| {
+                let app = self.app.clone();
+                async move {
+                    app.read()
+                        .await
+                        .set_color(&*light, color)
+                        .await
+                        .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send>)
+                }
+            }))
+            .await
+            .into_iter()
+            .find_map(|res| res.err())
+            {
+                Err(e)
+            } else {
+                Ok(())
             }
-            Ok(())
         })
     }
 }
