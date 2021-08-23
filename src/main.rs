@@ -3,7 +3,10 @@ use std::{collections::HashMap, convert::Infallible, io::Read, net::IpAddr, sync
 use async_compat::Compat;
 use bytes::Bytes;
 use futures::{pin_mut, StreamExt};
-use lights::{tuya_scan, BroadlinkLight, EspLight};
+use lights::{
+    hook::{hook, HookData},
+    tuya_scan, BroadlinkLight, EspLight,
+};
 use lights_broadlink::discover;
 use lights_esp_strip::listen;
 use smol::{
@@ -90,6 +93,10 @@ fn main() {
                 }
             });
 
+        let run_program = warp::path("run_program")
+            .and(warp::body::json())
+            .and_then(|data: HookData| async move { hook(data).await });
+
         let write = warp::path!("write" / String / String)
             .and(warp::body::bytes())
             .and_then({
@@ -132,6 +139,7 @@ fn main() {
                     .or(fulfill)
                     .or(upload)
                     .or(write)
+                    .or(run_program)
                     .or(warp::path::end().map(|| {
                         let mut string = String::new();
                         std::fs::File::open("ui.html")

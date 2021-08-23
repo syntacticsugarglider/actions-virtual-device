@@ -16,6 +16,7 @@ use futures::future::BoxFuture;
 use request_sync::request_sync;
 use thiserror::Error;
 mod api;
+pub mod hook;
 pub use api::api;
 
 mod integrations;
